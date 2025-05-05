@@ -1,0 +1,42 @@
+body {
+    background: linear-gradient(to right, #1e3c72, #2a5298);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.card {
+    border-radius: 1rem;
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+}
+
+.btn-primary {
+    background-color: #1e3c72;
+    border: none;
+}
+
+.btn-primary:hover {
+    background-color: #16305a;
+}
+
+.form-control:focus {
+    box-shadow: 0 0 0 0.2rem rgba(46, 106, 195, 0.25);
+}
+
+.toggle-btn {
+    position: absolute;
+    right: 1rem ;
+    top: 50% ;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #555;
+    font-size: 1rem;
+}
+
+.form-text {
+    color: red;
+    font-size: 0.875rem;
+}
