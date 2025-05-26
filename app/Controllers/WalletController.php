@@ -13,10 +13,12 @@ class WalletController extends BaseController
 
     public function __construct()
     {
+        // INstacia os modelos para uso nos metodos
         $this->userModel = new UserModel();
         $this->transactionModel = new TransactionModel();
     }
 
+    // Retorna o usuario logado apartir da sessão
     private function getLoggedUser()
     {
         $userId = session()->get('user_id');
@@ -29,6 +31,7 @@ class WalletController extends BaseController
         return $user;
     }
 
+    // Exibe o dashboard do usuario com as transações recentes
     public function dashboard()
     {
         $user = $this->getLoggedUser();
@@ -44,6 +47,7 @@ class WalletController extends BaseController
         return view('wallet/dashboard', ['user' => $user, 'transactions' => $transactions]);
     }
 
+    // Exibe a tela de depositos com paginação
     public function depositView()
     {
         helper(['form']);
@@ -74,6 +78,7 @@ class WalletController extends BaseController
         ]);
     }
 
+    // Processa um deposito enviado via AJAX
     public function deposit()
     {
         $data = $this->request->getJSON();
@@ -84,6 +89,7 @@ class WalletController extends BaseController
             return $this->response->setJSON(['success' => false, 'message' => 'Valor inválido.']);
         }
 
+        // Verifica se a senha esta correta
         $passwordCheck = $this->verifyPasswordHelper($password);
         if (!$passwordCheck['success']) {
             return $this->response->setJSON(['success' => false, 'message' => $passwordCheck['message']]);
@@ -94,9 +100,11 @@ class WalletController extends BaseController
             return $this->response->setJSON(['success' => false, 'message' => 'Usuário inválido.']);
         }
 
+        // atualiza o salvo do usuario
         $newBalance = $user['balance'] + $amount;
         $this->userModel->update($user['id'], ['balance' => $newBalance]);
 
+        // Registra a transação
         $this->transactionModel->save([
             'user_id' => $user['id'],
             'type' => 'deposit',
@@ -104,6 +112,7 @@ class WalletController extends BaseController
             'description' => 'Depósito realizado'
         ]);
 
+        // Atualiza a lista de transações na view
         $transactions = $this->transactionModel
             ->where('user_id', $user['id'])
             ->where('type', 'deposit')
@@ -123,6 +132,7 @@ class WalletController extends BaseController
         ]);
     }
 
+    // Exibe a tela de tranferencia
     public function transferView()
     {
         $user = $this->getLoggedUser();
@@ -151,6 +161,7 @@ class WalletController extends BaseController
         ]);
     }
 
+    // Processa a tranferencia entre usuarios
     public function transfer()
     {
         $data = $this->request->getJSON();
@@ -174,16 +185,20 @@ class WalletController extends BaseController
             return $this->response->setJSON(['success' => false, 'message' => 'Saldo insuficiente ou usuário inválido.']);
         }
 
+        // Busca o destinatario
         $toUser = $this->userModel->where('account_number', $toAccount->number)->first();
         if (!$toUser || $toUser['name'] !== $toName || $toUser['agency_number'] !== $toAgency) {
             return $this->response->setJSON(['success' => false, 'message' => 'Dados do destinatário não coincidem.']);
         }
 
+        // transação segura
         $this->userModel->transStart();
 
+        // debita do remetente e credita no destinatario
         $this->userModel->update($fromUser['id'], ['balance' => $fromUser['balance'] - $amount]);
         $this->userModel->update($toUser['id'], ['balance' => $toUser['balance'] + $amount]);
 
+        // Salva a transação
         $this->transactionModel->save([
             'user_id' => $fromUser['id'],
             'type' => 'transfer',
@@ -192,6 +207,7 @@ class WalletController extends BaseController
             'related_user_id' => $toUser['id']
         ]);
 
+        // Atualiza as transações exibidas
         $transactions = $this->transactionModel
             ->where('user_id', $fromUser['id'])
             ->where('type', 'transfer')
@@ -208,6 +224,7 @@ class WalletController extends BaseController
         ]);
     }
 
+    // Tela que lista transações reversiveis (Somente tranferencias)
     public function reverseRequestView()
     {
         $user = $this->getLoggedUser();
@@ -221,6 +238,7 @@ class WalletController extends BaseController
             ->orderBy('created_at', 'DESC')
             ->findAll();
 
+        // Marca quais transações ja foram revertidas
         $reversedMap = [];
         foreach ($transactions as $tx) {
             if ($tx['type'] === 'reversal' && $tx['is_reversed']) {
@@ -235,11 +253,13 @@ class WalletController extends BaseController
         return view('wallet/reverse', ['transactions' => $transactions]);
     }
 
+    // Processa a reversão de uma transação
     public function reverseTransaction($transactionId)
     {
         $password = $this->request->getPost('password');
         $user = $this->getLoggedUser();
 
+        // Valida senha
         if (!$user || !password_verify($password, $user['password'])) {
             return $this->response->setJSON(['success' => false, 'message' => 'Senha incorreta. Reversão cancelada.']);
         }
@@ -256,6 +276,7 @@ class WalletController extends BaseController
         $this->userModel->transStart();
 
         if ($original['type'] === 'deposit') {
+            // Verifica se ha saldo suficiente para reverter o deposito
             if ($user['balance'] < $original['amount']) {
                 $this->userModel->transRollback();
                 return $this->response->setJSON(['success' => false, 'message' => 'Saldo insuficiente para reverter.']);
@@ -265,6 +286,7 @@ class WalletController extends BaseController
                 'balance' => $user['balance'] - $original['amount']
             ]);
         } else {
+            // Reverte uma tranferencia
             $toUser = $this->userModel->find($original['related_user_id']);
             if (!$toUser || $toUser['balance'] < $original['amount']) {
                 $this->userModel->transRollback();
@@ -275,6 +297,7 @@ class WalletController extends BaseController
             $this->userModel->update($toUser['id'], ['balance' => $toUser['balance'] - $original['amount']]);
         }
 
+        // Marca a transação como revertida
         $this->transactionModel->update($transactionId, ['is_reversed' => true, 'type' => 'reversal']);
 
         $this->userModel->transComplete();
@@ -282,6 +305,7 @@ class WalletController extends BaseController
         return $this->response->setJSON(['success' => true, 'message' => 'Transação revertida com sucesso.']);
     }
 
+    // verifica senha via AJAX
     public function verifyPassword()
     {
         $password = $this->request->getVar('password');
@@ -294,6 +318,7 @@ class WalletController extends BaseController
         return $this->response->setJSON(['success' => true]);
     }
 
+    // Função auxiliar para verificar senha em outros metodos
     private function verifyPasswordHelper($password)
     {
         $user = $this->getLoggedUser();

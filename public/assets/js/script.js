@@ -1,4 +1,6 @@
+//Depósito com autenticação via senha
 document.addEventListener('DOMContentLoaded', function () {
+    // Referencia aos elementos do formualrio de deposito
     const form = document.getElementById('depositForm');
     const amountInput = form.amount;
     const balanceDisplay = document.getElementById('balanceDisplay');
@@ -6,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const formCard = document.getElementById('formCard');
     const transactionList = document.querySelector('.list-group');
 
-
+    // Função que exibe prompt para o usuario digitar a senha
     const showPasswordPrompt = (amount) => {
         Swal.fire({
             title: 'Digite sua senha para confirmar o depósito:',
@@ -20,11 +22,13 @@ document.addEventListener('DOMContentLoaded', function () {
             confirmButtonText: 'Confirmar',
             cancelButtonText: 'Cancelar',
             preConfirm: (password) => {
+                //Validação: exige senha
                 if (!password) {
                     Swal.showValidationMessage('Você precisa digitar sua senha!');
                     return false;
                 }
 
+                // Envia os dados para o servidor via fetch
                 return fetch('/deposit', {
                     method: 'POST',
                     headers: {
@@ -44,8 +48,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
             }
         }).then((result) => {
+            // Se confirmação for aceita e nao houver erro
             if (result.isConfirmed && result.value) {
                 const data = result.value;
+                // Atualiza saldo e transações
                 balanceDisplay.textContent = `${data.new_balance.toFixed(2).replace('.', ',')}`;
                 form.reset();
 
@@ -63,23 +69,21 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     };
 
-
+    // Animações na primeira visita
     if (!document.referrer.includes('/deposit')) {
         animatedCard?.classList.add('animate__fadeInUp');
         formCard?.firstElementChild?.classList.add('animate__fadeInUp', 'animate__delay-1s');
     }
 
-
+    // Evento de envio do formulário de depósito
     form.addEventListener('submit', function (e) {
         e.preventDefault();
-
         const amount = parseFloat(amountInput.value);
         if (!amount || amount <= 0) return;
-
         showPasswordPrompt(amount);
     });
 
-
+    // Permite usar Enter para enviar o formulário
     amountInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -88,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
-
+//Transferência com autenticação
 document.addEventListener('DOMContentLoaded', function () {
     const transferForm = document.getElementById('transferForm');
     const amountInput = transferForm.amount;
@@ -161,7 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     };
 
-
+    // Envio do formulário de transferência
     transferForm.addEventListener('submit', function (e) {
         e.preventDefault();
 
@@ -170,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const toName = toNameInput.value;
         const toAgency = toAgencyInput.value;
 
-        // Validar os campos antes de enviar
+        // Valida os campos antes de enviar
         if (!amount || amount <= 0 || !toAccount.number || !toName || !toAgency) {
             return Swal.fire('Erro', 'Todos os campos são obrigatórios!', 'error');
         }
@@ -179,6 +183,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
+//Reversão de transação com senha
 function reverseTransaction(transactionId) {
     Swal.fire({
         title: 'Confirme sua senha',
@@ -200,6 +205,7 @@ function reverseTransaction(transactionId) {
         if (result.isConfirmed) {
             const password = result.value;
 
+            // Envia a requisição de reversão
             fetch('revers/' + transactionId, {
                 method: 'POST',
                 headers: {
@@ -216,6 +222,7 @@ function reverseTransaction(transactionId) {
                         timer: 2000
                     });
 
+                    // Recarrega a página se a reversão foi feita
                     if (data.success) {
                         setTimeout(() => {
                             location.reload();
@@ -234,6 +241,7 @@ function reverseTransaction(transactionId) {
     });
 }
 
+//Inicializa DataTable
 $(document).ready(function () {
     $('#transactionsTable').DataTable({
         pageLength: 10,
@@ -251,11 +259,12 @@ $(document).ready(function () {
     });
 });
 
+//Mostrar ou ocultar saldo
 document.addEventListener('DOMContentLoaded', function () {
     const btn = document.getElementById('toggleBalance');
     const icon = document.getElementById('toggleIcon');
     const balanceHidden = document.getElementById('balanceHidden');
-    const balanceReal = document.getElementById('balanceReal');
+    const balanceReal = document.getElementById('balanceReal'); // ou 'balanceDisplay' dependendo da tela
 
     let visible = false;
 
@@ -263,13 +272,13 @@ document.addEventListener('DOMContentLoaded', function () {
         visible = !visible;
 
         if (visible) {
-            balanceHidden.classList.add('d-none');
-            balanceReal.classList.remove('d-none');
-            icon.className = 'bi bi-eye-slash-fill';
+            balanceHidden.classList.add('d-none'); // esconde texto com 'R$ ***"
+            balanceReal.classList.remove('d-none'); //mostra saldo real
+            icon.className = 'bi bi-eye-slash-fill'; //icone de olho fechado
         } else {
-            balanceReal.classList.add('d-none');
-            balanceHidden.classList.remove('d-none');
-            icon.className = 'bi bi-eye-fill';
+            balanceReal.classList.add('d-none'); // esconde saldo real
+            balanceHidden.classList.remove('d-none'); // mostra texto escondido
+            icon.className = 'bi bi-eye-fill'; // icone de olho aberto
         }
     });
 });

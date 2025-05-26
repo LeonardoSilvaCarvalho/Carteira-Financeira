@@ -8,24 +8,27 @@ use App\Models\LoginAttemptModel;
 
 class AuthController extends BaseController
 {
+    // Exibe a tela de login
     public function login()
     {
         helper(['form']);
         return view('auth/login');
     }
 
+    // Processa a autenticação do usuario
     public function loginAuth()
     {
         $session = session();
         $model = new UserModel();
         $loginAttemptModel = new LoginAttemptModel();
 
+        // Coleta od dados do formulario
         $agency  = $this->request->getVar('agency');
         $account = $this->request->getVar('account');
         $cpf     = $this->request->getVar('cpf');
         $password = $this->request->getVar('password');
 
-
+        // Verifica se o usuario excedeu o número de tentativas de acesso
         $attempts = $loginAttemptModel->getAttempts($agency, $account);
 
         if ($attempts >= 3) {
@@ -33,24 +36,29 @@ class AuthController extends BaseController
             return redirect()->to('/');
         }
 
+        // Busca usuario com base em agência, conta e CPF
         $data = $model->where([
             'agency_number'  => $agency,
             'account_number' => $account,
             'cpf'            => $cpf,
         ])->first();
 
+        // Usuario nao encontrado
         if (!$data) {
             $loginAttemptModel->logAttempt($agency, $account, false);
             $session->setFlashdata('msg', 'Dados de login inválidos.');
             return redirect()->to('/');
         }
 
+        // Conta inativada
         if ($data['status'] !== 'ativo') {
             $session->setFlashdata('msg', 'Sua conta está inativa.');
             return redirect()->to('/');
         }
 
+        // Verifica a senha com hash
         if (password_verify($password, $data['password'])) {
+            // Armazena dados essenciais na sessão
             $session->set([
                 'user_id'        => $data['id'],
                 'name'           => $data['name'],
@@ -58,18 +66,22 @@ class AuthController extends BaseController
                 'account_number' => $data['account_number'],
             ]);
 
+            // Define cookies para facilitar preenchimento automatico posteriores
             setcookie('agency_number', $data['agency_number'], time() + (30 * 24 * 60 * 60), "/");
             setcookie('account_number', $data['account_number'], time() + (30 * 24 * 60 * 60), "/");
 
+            // Registra tentativa de login bem-sucedida
             $loginAttemptModel->logAttempt($agency, $account, true);
             return redirect()->to('/dashboard');
         } else {
+            // senha incorreta
             $loginAttemptModel->logAttempt($agency, $account, false);
             $session->setFlashdata('msg', 'Senha incorreta.');
             return redirect()->to('/');
         }
     }
 
+    // Exibe a tela de cadastro
     public function register()
     {
         helper(['form']);
@@ -77,11 +89,13 @@ class AuthController extends BaseController
 
     }
 
+    // Procesa e salva o cadastro do usuario
     public function save()
     {
         helper(['form']);
 
         if ($this->request->getMethod() === 'POST') {
+            // Validações basicas dos campos de cadastro
             $rules = [
                 'name'     => 'required|min_length[3]',
                 'email'    => 'required|valid_email|is_unique[users.email]',
@@ -89,6 +103,7 @@ class AuthController extends BaseController
                 'password' => 'required|min_length[6]',
             ];
 
+            // Mensagens personalizadas de erro
             $errors = [
                 'cpf' => [
                     'exact_length' => 'CPF deve ter exatamente 14 caracteres.',
@@ -99,12 +114,14 @@ class AuthController extends BaseController
                 ],
             ];
 
+            // Validação falho redireciona para a tela de cadastro com a msg de erro
             if (!$this->validate($rules, $errors)) {
                 return view('auth/register', [
                     'validation' => $this->validator
                 ]);
             }
 
+            // Validação extra para o CPF
             $cpf = $this->request->getPost('cpf');
             if (!$this->validateCPF($cpf)) {
                 return view('auth/register', [
@@ -112,10 +129,12 @@ class AuthController extends BaseController
                 ]);
             }
 
+
             $model = new UserModel();
             $accountNumber = $this->generateUniqueAccountNumber();
-            $agencyNumber = '1234';
+            $agencyNumber = '1234'; // Agencia fixa para todos os usuarios
 
+            // dados do novo usuario
             $userData = [
                 'name'           => $this->request->getPost('name'),
                 'email'          => $this->request->getPost('email'),
@@ -127,9 +146,10 @@ class AuthController extends BaseController
                 'status'         => 'ativo',
             ];
 
+            // Salva usuario no banco de dados
             $model->save($userData);
 
-
+            // retorna para a tela com dados do usuario e aviso de sucesso (via SweerAlert)
             return view('auth/register', [
                 'swal'           => true,
                 'name'           => $userData['name'],
@@ -141,6 +161,7 @@ class AuthController extends BaseController
         return view('auth/register');
     }
 
+    // Validação algoritimica de CPF (baseado em digitos verificadores)
     private function validateCPF($cpf)
     {
         $cpf = preg_replace('/[^0-9]/', '', $cpf);
@@ -156,16 +177,19 @@ class AuthController extends BaseController
         return true;
     }
 
+    // Geração de numer de conta unico (evita duplicação)
     private function generateUniqueAccountNumber()
     {
         $model = new UserModel();
         $accountNumber = rand(10000000, 99999999);
+        // Loop ate encontrar um numero nao utilizado
         while ($model->where('account_number', $accountNumber)->first()) {
             $accountNumber = rand(10000000, 99999999);
         }
         return $accountNumber;
     }
 
+    // Realiza o logout do usuario
     public function logout()
     {
         session()->destroy();
@@ -173,3 +197,17 @@ class AuthController extends BaseController
     }
 
 }
+/*
+ Ultilização do BCRYPT(password_hash) para a segurança da senha
+
+ Sistema de tentativas de login com limite e tempo de bloqueio para evitar ataques de força bruta
+
+ Validação manual de CPF com algoritmo oficial.
+
+ Cookies e sessão para facilitar a experiencia do usuario sem compromoter a segurança.
+
+ Criação de numeros de conta unico com verificação de duplicidade.
+
+ Respostas dinamicas e feedbacks para o usuario com mensagens claras.
+
+*/
